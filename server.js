@@ -7,10 +7,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Эти переменные будут заменены на Render
-const SHOP_ID = process.env.SHOP_ID;
-const SECRET_KEY = process.env.SECRET_KEY;
-const YOUR_SITE_URL = process.env.YOUR_SITE_URL || 'https://voiceinsidegalaxy.ru';
+// ========== ВОТ ЗДЕСЬ ВАШИ ДАННЫЕ (ЗАМЕНИТЕ) ==========
+const SHOP_ID = '1319443';                    // ← ЗАМЕНИТЕ 123 на ваш shopId
+const SECRET_KEY = 'live_oERkhR1uKbbSskCwVY_SzaLbXH1O5P4egEL-toqLPJA';                // ← ЗАМЕНИТЕ 321 на ваш секретный ключ
+const YOUR_SITE_URL = 'https://voiceinsidegalaxy.ru';  // ← ЗАМЕНИТЕ на адрес вашего сайта
+// =====================================================
 
 // Создание платежа
 app.post('/api/create-payment', async (req, res) => {
@@ -69,7 +70,6 @@ app.post('/api/webhook', async (req, res) => {
         if (event.object?.status === 'succeeded') {
             console.log(`✅ Успешная оплата! Платеж: ${event.object.id}`);
             console.log(`Курс: ${event.object.metadata?.courseName}`);
-            // Здесь можно добавить логику активации курса
         }
         
         res.send('OK');
@@ -96,7 +96,7 @@ app.get('/api/payment/:id', async (req, res) => {
     }
 });
 
-// Корневой маршрут для проверки работы бэкенда
+// Корневой маршрут для проверки
 app.get('/', (req, res) => {
     res.json({ status: 'ok', message: 'Бэкенд работает!' });
 });
