@@ -19,7 +19,7 @@ app.post('/api/create-payment', async (req, res) => {
         const { amount, description, courseId, courseName, email } = req.body;
         
         console.log(`💰 Создание платежа: ${amount}₽ за курс "${courseName}"`);
-        console.log(`📧 Email покупателя: ${email || 'не указан'}`);
+        console.log(`📧 Email: ${email || 'не указан'}`);
         
         // Базовая структура платежа
         const paymentData = {
@@ -39,20 +39,20 @@ app.post('/api/create-payment', async (req, res) => {
             }
         };
         
-        // Добавляем чек (receipt), если есть email
+        // Добавляем чек (обязательно для ЮKassa)
         if (email) {
             paymentData.receipt = {
                 customer: {
                     email: email
                 },
                 items: [{
-                    description: courseName,
+                    description: courseName.substring(0, 128),
                     quantity: "1.00",
                     amount: {
                         value: amount.toString(),
                         currency: "RUB"
                     },
-                    vat_code: "1",      // 1 = без НДС
+                    vat_code: "1",
                     payment_mode: "full_payment",
                     payment_subject: "service"
                 }]
@@ -82,7 +82,7 @@ app.post('/api/create-payment', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Ошибка:', error.response?.data || error.message);
+        console.error('❌ Ошибка создания платежа:', error.response?.data || error.message);
         res.status(500).json({ 
             success: false, 
             error: error.response?.data?.description || 'Ошибка создания платежа'
@@ -102,9 +102,8 @@ app.post('/api/webhook', async (req, res) => {
             const courseName = event.object.metadata?.courseName;
             
             console.log(`✅ УСПЕШНАЯ ОПЛАТА! Платеж: ${paymentId}, Курс: ${courseName}`);
-            
-            // Здесь можно добавить логику активации курса
-            // await axios.post(`${YOUR_SITE_URL}/api/activate-course`, { paymentId, courseId });
+        } else if (event.object?.status === 'canceled') {
+            console.log(`❌ Платеж отменен: ${event.object.id}`);
         }
         
         res.send('OK');
@@ -114,24 +113,28 @@ app.post('/api/webhook', async (req, res) => {
     }
 });
 
-// Проверка статуса платежа
+// Проверка статуса платежа (исправлено)
 app.get('/api/payment/:id', async (req, res) => {
     try {
         const response = await axios.get(`https://api.yookassa.ru/v3/payments/${req.params.id}`, {
             auth: { username: SHOP_ID, password: SECRET_KEY }
         });
         
+        console.log(`🔍 Статус платежа ${req.params.id}: ${response.data.status}`);
+        
         res.json({
             success: true,
             status: response.data.status,
-            paid: response.data.paid
+            paid: response.data.paid,
+            paymentId: response.data.id
         });
     } catch (error) {
+        console.error('Ошибка получения статуса:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// Корневой маршрут для проверки
+// Корневой маршрут
 app.get('/', (req, res) => {
     res.json({ status: 'ok', message: 'Бэкенд работает!' });
 });
