@@ -16,10 +16,12 @@ const YOUR_SITE_URL = 'https://voiceinsidegalaxy.ru';
 // Создание платежа
 app.post('/api/create-payment', async (req, res) => {
     try {
-        const { amount, description, courseId, courseName } = req.body;
+        const { amount, description, courseId, courseName, email } = req.body;
         
         console.log(`💰 Создание платежа: ${amount}₽ за курс "${courseName}"`);
+        console.log(`📧 Email покупателя: ${email || 'не указан'}`);
         
+        // Базовая структура платежа
         const paymentData = {
             amount: {
                 value: amount.toString(),
@@ -36,6 +38,29 @@ app.post('/api/create-payment', async (req, res) => {
                 courseName: courseName
             }
         };
+        
+        // Добавляем чек (receipt), если есть email
+        if (email) {
+            paymentData.receipt = {
+                customer: {
+                    email: email
+                },
+                items: [{
+                    description: courseName,
+                    quantity: "1.00",
+                    amount: {
+                        value: amount.toString(),
+                        currency: "RUB"
+                    },
+                    vat_code: "1",      // 1 = без НДС
+                    payment_mode: "full_payment",
+                    payment_subject: "service"
+                }]
+            };
+            console.log(`✅ Чек добавлен для ${email}`);
+        } else {
+            console.log(`⚠️ Чек не добавлен: email не передан`);
+        }
         
         const response = await axios.post('https://api.yookassa.ru/v3/payments', paymentData, {
             auth: {
