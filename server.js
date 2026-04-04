@@ -7,11 +7,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ========== ВОТ ЗДЕСЬ ВАШИ ДАННЫЕ (ЗАМЕНИТЕ) ==========
-const SHOP_ID = '1319443';                    // ← ЗАМЕНИТЕ 123 на ваш shopId
-const SECRET_KEY = 'live_oERkhR1uKbbSskCwVY_SzaLbXH1O5P4egEL-toqLPJA';                // ← ЗАМЕНИТЕ 321 на ваш секретный ключ
-const YOUR_SITE_URL = 'https://voiceinsidegalaxy.ru';  // ← ЗАМЕНИТЕ на адрес вашего сайта
-// =====================================================
+// ========== ВАШИ ДАННЫЕ ==========
+const SHOP_ID = '1319443';
+const SECRET_KEY = 'live_oERkhR1uKbbSskCwVY_SzaLbXH1O5P4egEL-toqLPJA';
+const YOUR_SITE_URL = 'https://voiceinsidegalaxy.ru';
+// =================================
 
 // Создание платежа
 app.post('/api/create-payment', async (req, res) => {
@@ -30,15 +30,18 @@ app.post('/api/create-payment', async (req, res) => {
                 type: "redirect",
                 return_url: `${YOUR_SITE_URL}/success.html`
             },
-            description: description,
+            description: description.substring(0, 128),
             metadata: {
-                courseId: courseId,
+                courseId: courseId.toString(),
                 courseName: courseName
             }
         };
         
         const response = await axios.post('https://api.yookassa.ru/v3/payments', paymentData, {
-            auth: { username: SHOP_ID, password: SECRET_KEY },
+            auth: {
+                username: SHOP_ID,
+                password: SECRET_KEY
+            },
             headers: {
                 'Idempotence-Key': uuidv4(),
                 'Content-Type': 'application/json'
@@ -66,10 +69,17 @@ app.post('/api/create-payment', async (req, res) => {
 app.post('/api/webhook', async (req, res) => {
     try {
         const event = req.body;
+        console.log('📨 Получен webhook:', JSON.stringify(event, null, 2));
         
         if (event.object?.status === 'succeeded') {
-            console.log(`✅ Успешная оплата! Платеж: ${event.object.id}`);
-            console.log(`Курс: ${event.object.metadata?.courseName}`);
+            const paymentId = event.object.id;
+            const courseId = event.object.metadata?.courseId;
+            const courseName = event.object.metadata?.courseName;
+            
+            console.log(`✅ УСПЕШНАЯ ОПЛАТА! Платеж: ${paymentId}, Курс: ${courseName}`);
+            
+            // Здесь можно добавить логику активации курса
+            // await axios.post(`${YOUR_SITE_URL}/api/activate-course`, { paymentId, courseId });
         }
         
         res.send('OK');
@@ -104,4 +114,7 @@ app.get('/', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Бэкенд запущен на порту ${PORT}`);
+    console.log(`📦 SHOP_ID: ${SHOP_ID}`);
+    console.log(`🔑 SECRET_KEY: ${SECRET_KEY ? '✓ загружен' : '✗ НЕ НАЙДЕН'}`);
+    console.log(`🔗 YOUR_SITE_URL: ${YOUR_SITE_URL}`);
 });
