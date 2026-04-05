@@ -15,7 +15,7 @@ const YOUR_SITE_URL = 'https://voiceinsidegalaxy.ru';
 
 // Настройки RuSender
 const RUSENDER_API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOjIyNzk5LCJpZEV4dGVybmFsTWFpbEFwaUtleSI6NDA0NCwiaWF0IjoxNzc1NDE2NTYwfQ.Sgaw4BUITlXPw4jbpyR5bIo_1LQNDswJ0cvuetMeyIo';
-const RUSENDER_SENDER_EMAIL = 'noreply@voiceinsidegalaxy.ru';
+const RUSENDER_SENDER_EMAIL = 'noreply@voiceinsidegalaxy.ru';  // ✅ исправлено
 const RUSENDER_SENDER_NAME = 'Voice Inside Galaxy';
 
 const USERS_FILE = '/tmp/users.json';
@@ -53,6 +53,7 @@ function hashPassword(password) {
 // Отправка письма через RuSender API
 async function sendEmail(to, subject, htmlContent, userName = '') {
   try {
+    console.log(`📧 Попытка отправить письмо на ${to} через RuSender...`);
     const response = await axios.post('https://api.rusender.ru/v1/external-mails/send', {
       mail: {
         to: { email: to, name: userName },
@@ -146,9 +147,13 @@ app.post('/api/forgot-password', async (req, res) => {
     </div>
   `;
   
-  await sendEmail(email, 'Восстановление пароля — Voice Inside Galaxy', htmlContent, user.name);
+  const sent = await sendEmail(email, 'Восстановление пароля — Voice Inside Galaxy', htmlContent, user.name);
   
-  res.json({ success: true, message: 'Ссылка для сброса пароля отправлена на ваш email' });
+  if (sent) {
+    res.json({ success: true, message: 'Ссылка для сброса пароля отправлена на ваш email' });
+  } else {
+    res.json({ success: false, error: 'Не удалось отправить письмо. Попробуйте позже.' });
+  }
 });
 
 // Сброс пароля
@@ -328,9 +333,5 @@ app.get('/', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Бэкенд запущен на порту ${PORT}`);
-  console.log(`📦 SHOP_ID: ${SHOP_ID}`);
-  console.log(`🔑 SECRET_KEY: ${SECRET_KEY ? '✓ загружен' : '✗ НЕ НАЙДЕН'}`);
-  console.log(`🔗 YOUR_SITE_URL: ${YOUR_SITE_URL}`);
-  console.log(`💾 Данные хранятся в: /tmp/users.json, /tmp/purchases.json, /tmp/reset_tokens.json`);
-  console.log(`📧 RuSender: ${RUSENDER_API_KEY ? '✓ API ключ загружен' : '✗ НЕ НАЙДЕН'}`);
+  console.log(`📧 RuSender отправитель: ${RUSENDER_SENDER_EMAIL}`);
 });
