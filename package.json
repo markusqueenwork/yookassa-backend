@@ -1,7 +1,6 @@
 {
   "name": "yookassa-backend",
   "version": "1.0.0",
-  "description": "Бэкенд для оплаты курсов Voice Inside Galaxy",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -11,5 +10,8 @@
     "cors": "^2.8.5",
     "axios": "^1.6.0",
     "uuid": "^9.0.1"
+  },
+  "engines": {
+    "node": "18.x"
   }
 }
