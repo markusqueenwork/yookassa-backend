@@ -20,9 +20,7 @@ app.use(express.json());
 
 // ========== НАСТРОЙКИ UNISENDER ==========
 const UNISENDER_API_KEY = '6p78dqzsxasfcdoj7k7n4b4xgmfwhmqbw96rsr7a';
-// ВАЖНО: Замени sandbox-домен на свой из личного кабинета Unisender
-// Зайди в Unisender → "Домены отправки" → "Получить тестовый домен"
-const UNISENDER_SENDER_EMAIL = 'sandbox-ТВОЙ_ДОМЕН.unigosendbox.com';  // ЗАМЕНИ!
+const UNISENDER_SENDER_EMAIL = 'markusqueenwork@gmail.com';
 const UNISENDER_SENDER_NAME = 'Voice Inside Galaxy';
 // ========================================
 
