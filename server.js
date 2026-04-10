@@ -6,7 +6,28 @@ const crypto = require('crypto');
 const { Pool } = require('pg');
 
 const app = express();
-app.use(cors());
+
+// ========== УСИЛЕННЫЕ НАСТРОЙКИ CORS ==========
+// Разрешаем запросы с любых источников (для теста)
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true
+}));
+
+// Дополнительные заголовки для любых запросов (обработка preflight)
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+// ============================================
+
 app.use(express.json());
 
 const SHOP_ID = '1319443';
@@ -18,7 +39,7 @@ const RUSENDER_API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFVzZXIiOjIyN
 const RUSENDER_SENDER_EMAIL = 'noreply@voiceinsidegalaxy.ru';
 const RUSENDER_SENDER_NAME = 'Voice Inside Galaxy';
 
-// Подключение к PostgreSQL (Render сам подставит DATABASE_URL)
+// Подключение к PostgreSQL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
