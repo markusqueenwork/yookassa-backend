@@ -32,11 +32,15 @@ const SHOP_ID = '1319443';
 const SECRET_KEY = 'live_oERkhR1uKbbSskCwVY_SzaLbXH1O5P4egEL-toqLPJA';
 const YOUR_SITE_URL = 'https://voiceinsidegalaxy.ru';
 
-// Подключение к PostgreSQL
+// ========== ПОДКЛЮЧЕНИЕ К POSTGRESQL (ДЛЯ VPS REG.RU) ==========
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  user: 'voice_user',           // пользователь, которого создадите
+  password: 'ВАШ_ПАРОЛЬ',       // ЗАМЕНИТЕ НА СВОЙ ПАРОЛЬ
+  host: 'localhost',
+  port: 5432,
+  database: 'voiceinsidegalaxy_db'
 });
+// ================================================================
 
 // Инициализация таблиц
 async function initDB() {
