@@ -34,8 +34,8 @@ const YOUR_SITE_URL = 'https://voiceinsidegalaxy.ru';
 
 // ========== ПОДКЛЮЧЕНИЕ К POSTGRESQL (ДЛЯ VPS REG.RU) ==========
 const pool = new Pool({
-  user: 'voice_user',           // пользователь, которого создадите
-  password: 'ВАШ_ПАРОЛЬ',       // ЗАМЕНИТЕ НА СВОЙ ПАРОЛЬ
+  user: 'voice_user',
+  password: 'ZaNuda4kapl.',
   host: 'localhost',
   port: 5432,
   database: 'voiceinsidegalaxy_db'
