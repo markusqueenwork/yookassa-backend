@@ -10,7 +10,7 @@
     "cors": "^2.8.5",
     "axios": "^1.6.0",
     "uuid": "^9.0.1",
-    "pg": "^8.11.3"
+    "@supabase/supabase-js": "^2.39.0"
   },
   "engines": {
     "node": "18.x"
