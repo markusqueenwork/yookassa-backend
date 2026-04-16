@@ -3,7 +3,7 @@ const cors = require('cors');
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
-const { Pool } = require('pg');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 
@@ -28,51 +28,23 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-const SHOP_ID = '1319443';
-const SECRET_KEY = 'live_oERkhR1uKbbSskCwVY_SzaLbXH1O5P4egEL-toqLPJA';
-const YOUR_SITE_URL = 'https://voiceinsidegalaxy.ru';
+// ========== ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ (RENDER) ==========
+const SHOP_ID = process.env.SHOP_ID || '1319443';
+const SECRET_KEY = process.env.SECRET_KEY || 'live_oERkhR1uKbbSskCwVY_SzaLbXH1O5P4egEL-toqLPJA';
+const YOUR_SITE_URL = process.env.YOUR_SITE_URL || 'https://voiceinsidegalaxy.ru';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+// ==================================================
 
-// ========== ПОДКЛЮЧЕНИЕ К POSTGRESQL (ДЛЯ VPS REG.RU) ==========
-const pool = new Pool({
-  user: 'voice_user',
-  password: 'ZaNuda4kapl.',
-  host: 'localhost',
-  port: 5432,
-  database: 'voiceinsidegalaxy_db'
-});
-// ================================================================
-
-// Инициализация таблиц
-async function initDB() {
-  const client = await pool.connect();
-  try {
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS purchases (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        course_id INTEGER NOT NULL,
-        course_name VARCHAR(255) NOT NULL,
-        price INTEGER NOT NULL,
-        payment_id VARCHAR(255),
-        purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('✅ База данных и таблицы созданы');
-  } catch (err) {
-    console.error('❌ Ошибка инициализации БД:', err);
-  } finally {
-    client.release();
-  }
+// ========== ПОДКЛЮЧЕНИЕ К SUPABASE ==========
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error('❌ Ошибка: SUPABASE_URL и SUPABASE_ANON_KEY должны быть заданы в переменных окружения');
+  process.exit(1);
 }
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+console.log('✅ Supabase подключён');
+// ============================================
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -85,15 +57,23 @@ app.post('/api/register', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Заполните все поля' });
   }
   try {
-    const result = await pool.query(
-      'INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email',
-      [name, email, hashPassword(password)]
-    );
-    res.json({ success: true, user: result.rows[0] });
-  } catch (err) {
-    if (err.code === '23505') {
-      return res.json({ success: false, error: 'Email уже зарегистрирован' });
+    const { data, error } = await supabase
+      .from('users')
+      .insert([{ name, email, password_hash: hashPassword(password) }])
+      .select('id, name, email')
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return res.json({ success: false, error: 'Email уже зарегистрирован' });
+      }
+      console.error('Ошибка регистрации:', error);
+      return res.status(500).json({ success: false, error: 'Ошибка сервера' });
     }
+
+    res.json({ success: true, user: data });
+  } catch (err) {
+    console.error('Ошибка сервера:', err);
     res.status(500).json({ success: false, error: 'Ошибка сервера' });
   }
 });
@@ -102,15 +82,20 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    const result = await pool.query(
-      'SELECT id, name, email FROM users WHERE email = $1 AND password_hash = $2',
-      [email, hashPassword(password)]
-    );
-    if (result.rows.length === 0) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name, email')
+      .eq('email', email)
+      .eq('password_hash', hashPassword(password))
+      .single();
+
+    if (error || !data) {
       return res.json({ success: false, error: 'Неверный email или пароль' });
     }
-    res.json({ success: true, user: result.rows[0] });
+
+    res.json({ success: true, user: data });
   } catch (err) {
+    console.error('Ошибка сервера:', err);
     res.status(500).json({ success: false, error: 'Ошибка сервера' });
   }
 });
@@ -119,10 +104,22 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/my-purchases', async (req, res) => {
   const userId = parseInt(req.query.userId);
   if (!userId) return res.status(400).json({ success: false, error: 'userId не указан' });
+
   try {
-    const result = await pool.query('SELECT course_id, course_name, price, purchased_at FROM purchases WHERE user_id = $1 ORDER BY purchased_at DESC', [userId]);
-    res.json({ success: true, purchases: result.rows });
+    const { data, error } = await supabase
+      .from('purchases')
+      .select('course_id, course_name, price, purchased_at')
+      .eq('user_id', userId)
+      .order('purchased_at', { ascending: false });
+
+    if (error) {
+      console.error('Ошибка получения покупок:', error);
+      return res.status(500).json({ success: false, error: 'Ошибка сервера' });
+    }
+
+    res.json({ success: true, purchases: data });
   } catch (err) {
+    console.error('Ошибка сервера:', err);
     res.status(500).json({ success: false, error: 'Ошибка сервера' });
   }
 });
@@ -155,6 +152,7 @@ app.post('/api/create-payment', async (req, res) => {
     });
     res.json({ success: true, confirmationUrl: response.data.confirmation.confirmation_url, paymentId: response.data.id });
   } catch (error) {
+    console.error('Ошибка создания платежа:', error);
     res.status(500).json({ success: false, error: error.response?.data?.description || 'Ошибка создания платежа' });
   }
 });
@@ -169,12 +167,34 @@ app.post('/api/confirm-payment', async (req, res) => {
     if (paymentStatus.data.status !== 'succeeded') {
       return res.json({ success: false, error: 'Платёж не подтверждён' });
     }
-    const existing = await pool.query('SELECT id FROM purchases WHERE user_id = $1 AND course_id = $2', [userId, courseId]);
-    if (existing.rows.length === 0) {
-      await pool.query('INSERT INTO purchases (user_id, course_id, course_name, price, payment_id) VALUES ($1, $2, $3, $4, $5)', [userId, courseId, courseName, price, paymentId]);
+
+    // Проверяем, нет ли уже такой покупки
+    const { data: existing, error: checkError } = await supabase
+      .from('purchases')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('course_id', courseId)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error('Ошибка проверки покупки:', checkError);
+      return res.status(500).json({ success: false, error: 'Ошибка сервера' });
     }
+
+    if (!existing) {
+      const { error: insertError } = await supabase
+        .from('purchases')
+        .insert([{ user_id: userId, course_id: courseId, course_name: courseName, price: price, payment_id: paymentId }]);
+
+      if (insertError) {
+        console.error('Ошибка добавления покупки:', insertError);
+        return res.status(500).json({ success: false, error: 'Ошибка сервера' });
+      }
+    }
+
     res.json({ success: true, message: 'Курс добавлен в профиль' });
   } catch (err) {
+    console.error('Ошибка проверки платежа:', err);
     res.status(500).json({ success: false, error: 'Ошибка проверки платежа' });
   }
 });
@@ -187,6 +207,7 @@ app.get('/api/payment/:id', async (req, res) => {
     });
     res.json({ success: true, status: response.data.status, paid: response.data.paid });
   } catch (error) {
+    console.error('Ошибка проверки статуса:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -196,7 +217,6 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', async () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Бэкенд запущен на порту ${PORT}`);
-  await initDB();
 });
