@@ -124,16 +124,24 @@ app.get('/api/my-purchases', async (req, res) => {
   }
 });
 
-// Создание платежа
+// Создание платежа (поддержка нескольких курсов)
 app.post('/api/create-payment', async (req, res) => {
   try {
-    const { amount, description, courseId, courseName, userId, email } = req.body;
+    const { amount, description, courseIds, courseName, userId, email } = req.body;
+    
+    // courseIds может быть массивом или одним ID
+    const ids = Array.isArray(courseIds) ? courseIds : [courseIds];
+    
     const paymentData = {
       amount: { value: amount.toString(), currency: "RUB" },
       capture: true,
       confirmation: { type: "redirect", return_url: `${YOUR_SITE_URL}/success.html` },
       description: description.substring(0, 128),
-      metadata: { courseId: courseId.toString(), courseName: courseName, userId: userId.toString() },
+      metadata: { 
+        courseIds: JSON.stringify(ids), 
+        courseName: courseName, 
+        userId: userId.toString() 
+      },
       receipt: {
         customer: { email: email || 'customer@voiceinsidegalaxy.ru' },
         items: [{
@@ -146,53 +154,84 @@ app.post('/api/create-payment', async (req, res) => {
         }]
       }
     };
+    
     const response = await axios.post('https://api.yookassa.ru/v3/payments', paymentData, {
       auth: { username: SHOP_ID, password: SECRET_KEY },
       headers: { 'Idempotence-Key': uuidv4(), 'Content-Type': 'application/json' }
     });
-    res.json({ success: true, confirmationUrl: response.data.confirmation.confirmation_url, paymentId: response.data.id });
+    
+    res.json({ 
+      success: true, 
+      confirmationUrl: response.data.confirmation.confirmation_url, 
+      paymentId: response.data.id 
+    });
   } catch (error) {
     console.error('Ошибка создания платежа:', error);
     res.status(500).json({ success: false, error: error.response?.data?.description || 'Ошибка создания платежа' });
   }
 });
 
-// Подтверждение оплаты
+// Подтверждение оплаты (поддержка нескольких курсов)
 app.post('/api/confirm-payment', async (req, res) => {
-  const { paymentId, userId, courseId, courseName, price } = req.body;
+  const { paymentId, userId, courseIds, courseNames, price } = req.body;
+  
   try {
     const paymentStatus = await axios.get(`https://api.yookassa.ru/v3/payments/${paymentId}`, {
       auth: { username: SHOP_ID, password: SECRET_KEY }
     });
+    
     if (paymentStatus.data.status !== 'succeeded') {
       return res.json({ success: false, error: 'Платёж не подтверждён' });
     }
 
-    // Проверяем, нет ли уже такой покупки
-    const { data: existing, error: checkError } = await supabase
-      .from('purchases')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('course_id', courseId)
-      .maybeSingle();
-
-    if (checkError) {
-      console.error('Ошибка проверки покупки:', checkError);
-      return res.status(500).json({ success: false, error: 'Ошибка сервера' });
-    }
-
-    if (!existing) {
-      const { error: insertError } = await supabase
+    // courseIds может быть массивом или одним ID
+    const ids = Array.isArray(courseIds) ? courseIds : [courseIds];
+    const names = courseNames ? courseNames.split(', ') : [`Курс #${ids[0]}`];
+    const pricePerCourse = Math.floor(price / ids.length);
+    
+    const results = [];
+    
+    for (let i = 0; i < ids.length; i++) {
+      const courseId = ids[i];
+      const courseName = names[i] || `Курс #${courseId}`;
+      
+      // Проверяем, нет ли уже такой покупки
+      const { data: existing, error: checkError } = await supabase
         .from('purchases')
-        .insert([{ user_id: userId, course_id: courseId, course_name: courseName, price: price, payment_id: paymentId }]);
+        .select('id')
+        .eq('user_id', userId)
+        .eq('course_id', courseId)
+        .maybeSingle();
 
-      if (insertError) {
-        console.error('Ошибка добавления покупки:', insertError);
-        return res.status(500).json({ success: false, error: 'Ошибка сервера' });
+      if (checkError) {
+        console.error('Ошибка проверки покупки:', checkError);
+        continue;
+      }
+
+      if (!existing) {
+        const { error: insertError } = await supabase
+          .from('purchases')
+          .insert([{ 
+            user_id: userId, 
+            course_id: courseId, 
+            course_name: courseName, 
+            price: pricePerCourse, 
+            payment_id: paymentId 
+          }]);
+
+        if (insertError) {
+          console.error('Ошибка добавления покупки:', insertError);
+        } else {
+          results.push(courseId);
+        }
       }
     }
 
-    res.json({ success: true, message: 'Курс добавлен в профиль' });
+    res.json({ 
+      success: true, 
+      message: `Добавлено курсов: ${results.length}`,
+      addedCourses: results 
+    });
   } catch (err) {
     console.error('Ошибка проверки платежа:', err);
     res.status(500).json({ success: false, error: 'Ошибка проверки платежа' });
